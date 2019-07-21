@@ -181,6 +181,9 @@ int Replay::ParseReplayid(const char* data, int size)
     return ERR_REPLAYID;
   }
 
+  Len len = {};
+  memcpy(len.buf, data+NULL_HEAD_LEN, INT_LEN);
+  printf("0x%x\n", len.data);
   replayid_.assign(REPLAYID_SERS);
   return NULL_HEAD_LEN+REPLAYID_LEN;
 }
