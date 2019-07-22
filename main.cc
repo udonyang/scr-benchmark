@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdint>
+#include <cstdarg>
 
 #include <utility>
 #include <sstream>
@@ -18,6 +19,14 @@
 
 namespace scr
 {
+
+void Log(const char* fmt, ...)
+{
+  va_list va;
+  va_start(va, fmt);
+  int len = vfprintf(stderr, fmt, va);
+  va_end(va);
+}
 
 int LoadFile(const char* path, std::string* data)
 {
@@ -444,7 +453,7 @@ struct Frame
 
   };
 };
-static const std::unordered_map<unsigned char, std::pair<const char*, int>> CMD_INFO = 
+static const std::unordered_map<unsigned char, std::pair<const char*, int>> g_cmd_info = 
 {
   { 0x09, { "Select", sizeof(Frame::Select) } },
   { 0x0A, { "ShiftSelect", sizeof(Frame::ShiftSelect) } },
@@ -486,7 +495,7 @@ static const std::unordered_map<unsigned char, std::pair<const char*, int>> CMD_
 
 void DumpCmdInfo()
 {
-  for (const auto& info: CMD_INFO)
+  for (const auto& info: g_cmd_info)
   {
     printf("0x%02hhX, %s, %d\n", info.first, info.second.first, info.second.second);
   }
@@ -693,7 +702,7 @@ int Parse(const char* data, int size, Replay* replay)
     &ParseGap,
     &ParseHeader,
     &ParseFrame,
-    &ParseMapData,
+    // &ParseMapData,
     // &ParseRwaData,
   };
 
