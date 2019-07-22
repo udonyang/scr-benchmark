@@ -1,5 +1,8 @@
 scr-benchmark: main.cc
-	@g++ -std=gnu++11 -o $@ $^
+	@g++ -g -std=gnu++11 -o $@ $^ -lz
 
 run:
 	./scr-benchmark ./test.rep
+
+test:
+	gdb --args ./scr-benchmark ./test.rep
