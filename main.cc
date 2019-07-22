@@ -20,12 +20,15 @@
 namespace scr
 {
 
-void Log(const char* fmt, ...)
+std::string&& FmtStr(const char* fmt, ...)
 {
   va_list va;
   va_start(va, fmt);
   int len = vfprintf(stderr, fmt, va);
+  std::string foo(len, '\0');
+  vsnprintf((char*)foo.data(), len, fmt, va);
   va_end(va);
+  return std::move(foo);
 }
 
 int LoadFile(const char* path, std::string* data)
@@ -187,6 +190,29 @@ struct Frame
   };
   std::vector<std::shared_ptr<Command>> command;
 
+  struct __attribute__((packed)) KeepAlive
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) SaveGame
+  {
+    CommandHead head;
+    unsigned int count;
+    char u1[1<<(sizeof(char)<<3)];
+  };
+
+  struct __attribute__((packed)) LoadGame
+  {
+    CommandHead head;
+    unsigned int count;
+  };
+
+  struct __attribute__((packed)) RestartGame
+  {
+    CommandHead head;
+  };
+
   struct __attribute__((packed)) Select
   {
     CommandHead head;
@@ -233,6 +259,29 @@ struct Frame
 
     unsigned int u;
   };
+
+  struct __attribute__((packed)) GameSpeed
+  {
+    CommandHead head;
+    unsigned char speed;
+  };
+
+  struct __attribute__((packed)) Pause
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) Resume
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) Cheat
+  {
+    CommandHead head;
+    char u1[4];
+  };
+
 
   struct __attribute__((packed)) Hotkey
   {
@@ -286,6 +335,21 @@ struct Frame
     CommandHead head;
 
     unsigned char u1;
+  };
+
+  struct __attribute__((packed)) CarrierStop
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) ReaverStop
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) OrderNothing
+  {
+    CommandHead head;
   };
 
   struct __attribute__((packed)) ReturnCargo
@@ -401,7 +465,8 @@ struct Frame
   {
     CommandHead head;
 
-    unsigned int u1;
+    unsigned short x;
+    unsigned short y;
   };
 
   struct __attribute__((packed)) Research
@@ -424,6 +489,16 @@ struct Frame
     unsigned char upgrade_id;
   };
 
+  struct __attribute__((packed)) CancelUpgrade
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) CancelAddon
+  {
+    CommandHead head;
+  };
+
   struct __attribute__((packed)) Morph
   {
     CommandHead head;
@@ -437,6 +512,116 @@ struct Frame
 
   };
 
+  struct __attribute__((packed)) Sync
+  {
+    CommandHead head;
+    char u1[6];
+  };
+
+  struct __attribute__((packed)) VoiceEnable
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) VoiceDisable
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) VoiceSquelch
+  {
+    CommandHead head;
+    char u1[1];
+  };
+
+  struct __attribute__((packed)) VoiceUnsquelch
+  {
+    CommandHead head;
+    char u1[1];
+  };
+
+  struct __attribute__((packed)) StartGame
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) DownloadPercentage
+  {
+    CommandHead head;
+    char u1[1];
+  };
+
+  struct __attribute__((packed)) ChangeGameSlot
+  {
+    CommandHead head;
+    char u1[5];
+  };
+
+  struct __attribute__((packed)) NewNetPlayer
+  {
+    CommandHead head;
+    char u1[7];
+  };
+
+  struct __attribute__((packed)) JoinedGame
+  {
+    CommandHead head;
+    char u1[17];
+  };
+
+  struct __attribute__((packed)) ChangeRace
+  {
+    CommandHead head;
+    char u1[2];
+  };
+
+  struct __attribute__((packed)) TeamGameTeam
+  {
+    CommandHead head;
+    char u1[1];
+  };
+
+  struct __attribute__((packed)) UMSTeam
+  {
+    CommandHead head;
+    char u1[1];
+  };
+
+  struct __attribute__((packed)) MeleeTeam
+  {
+    CommandHead head;
+    char u1[2];
+  };
+
+  struct __attribute__((packed)) SwapPlayers
+  {
+    CommandHead head;
+    char u1[2];
+  };
+
+  struct __attribute__((packed)) SavedData
+  {
+    CommandHead head;
+    char u1[12];
+  };
+
+  struct __attribute__((packed)) BriefingStart
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) Latency
+  {
+    CommandHead head;
+    unsigned char type;
+  };
+
+  struct __attribute__((packed)) ReplaySpeed
+  {
+    CommandHead head;
+    unsigned char u1[9];
+  };
+
   struct __attribute__((packed)) LeaveGame
   {
     CommandHead head;
@@ -447,50 +632,118 @@ struct Frame
     unsigned char reason;
   };
 
+  struct __attribute__((packed)) MinimapPing
+  {
+    CommandHead head;
+    unsigned short x;
+    unsigned short y;
+  };
+
   struct __attribute__((packed)) MergeDarkArchon
   {
     CommandHead head;
 
   };
+
+  struct __attribute__((packed)) MakeGamePublic
+  {
+    CommandHead head;
+  };
+
+  struct __attribute__((packed)) Chat
+  {
+    CommandHead head;
+    unsigned char playerid;
+    char msg[80];
+  };
+
+  struct __attribute__((packed)) Select121
+  {
+    CommandHead head;
+    unsigned char nunit;
+    struct __attribute__((packed)) UnitInfo
+    {
+      unsigned short unit_type;
+      unsigned short u1;
+    };
+    UnitInfo units[1<<(sizeof(nunit)<<3)];
+  };
+
 };
 static const std::unordered_map<unsigned char, std::pair<const char*, int>> g_cmd_info = 
 {
-  { 0x09, { "Select", sizeof(Frame::Select) } },
-  { 0x0A, { "ShiftSelect", sizeof(Frame::ShiftSelect) } },
-  { 0x0B, { "ShiftDelect", sizeof(Frame::ShiftDelect) } },
-  { 0x0C, { "Build", sizeof(Frame::Build) } },
-  { 0x0D, { "Vison ", sizeof(Frame::Vison ) } },
-  { 0x0E, { "Ally", sizeof(Frame::Ally) } },
-  { 0x13, { "Hotkey", sizeof(Frame::Hotkey) } },
-  { 0x14, { "Move", sizeof(Frame::Move) } },
-  { 0x15, { "Action", sizeof(Frame::Action) } },
-  { 0x18, { "Cancel", sizeof(Frame::Cancel) } },
-  { 0x19, { "CancelHatch", sizeof(Frame::CancelHatch) } },
-  { 0x1A, { "Stop", sizeof(Frame::Stop) } },
-  { 0x1E, { "ReturnCargo", sizeof(Frame::ReturnCargo) } },
-  { 0x1F, { "Train", sizeof(Frame::Train) } },
-  { 0x20, { "CancelTrain", sizeof(Frame::CancelTrain) } },
-  { 0x21, { "Cloak", sizeof(Frame::Cloak) } },
-  { 0x22, { "Decloak", sizeof(Frame::Decloak) } },
-  { 0x23, { "Hatch", sizeof(Frame::Hatch) } },
-  { 0x25, { "Unsiege", sizeof(Frame::Unsiege) } },
-  { 0x26, { "Siege", sizeof(Frame::Siege) } },
-  { 0x27, { "Scarab", sizeof(Frame::Scarab) } },
-  { 0x28, { "UnloadAll", sizeof(Frame::UnloadAll) } },
-  { 0x29, { "Unload", sizeof(Frame::Unload) } },
-  { 0x2A, { "MergeArchon", sizeof(Frame::MergeArchon) } },
-  { 0x2B, { "HoldPosition", sizeof(Frame::HoldPosition) } },
-  { 0x2C, { "Burrow", sizeof(Frame::Burrow) } },
-  { 0x2D, { "UnBurrow", sizeof(Frame::UnBurrow) } },
-  { 0x2E, { "CancelNuke", sizeof(Frame::CancelNuke) } },
-  { 0x2F, { "Lift", sizeof(Frame::Lift) } },
-  { 0x30, { "Research", sizeof(Frame::Research) } },
-  { 0x31, { "CancelResearch", sizeof(Frame::CancelResearch) } },
-  { 0x32, { "Upgrade", sizeof(Frame::Upgrade) } },
-  { 0x35, { "Morph", sizeof(Frame::Morph) } },
-  { 0x36, { "Stim", sizeof(Frame::Stim) } },
-  { 0x57, { "LeaveGame", sizeof(Frame::LeaveGame) } },
-  { 0x5A, { "MergeDarkArchon", sizeof(Frame::MergeDarkArchon) } },
+	{ 0x05, { "KeepAlive",          sizeof(Frame::KeepAlive) } }, 
+	{ 0x06, { "SaveGame",           sizeof(Frame::SaveGame) } }, 
+	{ 0x07, { "LoadGame",           sizeof(Frame::LoadGame) } }, 
+	{ 0x08, { "RestartGame",        sizeof(Frame::RestartGame) } }, 
+  { 0x09, { "Select",             sizeof(Frame::Select) } },
+  { 0x0A, { "ShiftSelect",        sizeof(Frame::ShiftSelect) } },
+  { 0x0B, { "ShiftDelect",        sizeof(Frame::ShiftDelect) } },
+  { 0x0C, { "Build",              sizeof(Frame::Build) } },
+  { 0x0D, { "Vison ",             sizeof(Frame::Vison ) } },
+  { 0x0E, { "Ally",               sizeof(Frame::Ally) } },
+	{ 0x0f, { "GameSpeed",          sizeof(Frame::GameSpeed) } }, 
+	{ 0x10, { "Pause",              sizeof(Frame::Pause) } }, 
+	{ 0x11, { "Resume",             sizeof(Frame::Resume) } }, 
+	{ 0x12, { "Cheat",              sizeof(Frame::Cheat) } }, 
+  { 0x13, { "Hotkey",             sizeof(Frame::Hotkey) } },
+  { 0x14, { "Move",               sizeof(Frame::Move) } },
+  { 0x15, { "Action",             sizeof(Frame::Action) } },
+  { 0x18, { "Cancel",             sizeof(Frame::Cancel) } },
+  { 0x19, { "CancelHatch",        sizeof(Frame::CancelHatch) } },
+  { 0x1A, { "Stop",               sizeof(Frame::Stop) } },
+	{ 0x1b, { "CarrierStop",        sizeof(Frame::CarrierStop) } }, 
+	{ 0x1c, { "ReaverStop",         sizeof(Frame::ReaverStop) } }, 
+	{ 0x1d, { "OrderNothing",       sizeof(Frame::OrderNothing) } }, 
+  { 0x1E, { "ReturnCargo",        sizeof(Frame::ReturnCargo) } },
+  { 0x1F, { "Train",              sizeof(Frame::Train) } },
+  { 0x20, { "CancelTrain",        sizeof(Frame::CancelTrain) } },
+  { 0x21, { "Cloak",              sizeof(Frame::Cloak) } },
+  { 0x22, { "Decloak",            sizeof(Frame::Decloak) } },
+  { 0x23, { "Hatch",              sizeof(Frame::Hatch) } },
+  { 0x25, { "Unsiege",            sizeof(Frame::Unsiege) } },
+  { 0x26, { "Siege",              sizeof(Frame::Siege) } },
+  { 0x27, { "Scarab",             sizeof(Frame::Scarab) } },
+  { 0x28, { "UnloadAll",          sizeof(Frame::UnloadAll) } },
+  { 0x29, { "Unload",             sizeof(Frame::Unload) } },
+  { 0x2A, { "MergeArchon",        sizeof(Frame::MergeArchon) } },
+  { 0x2B, { "HoldPosition",       sizeof(Frame::HoldPosition) } },
+  { 0x2C, { "Burrow",             sizeof(Frame::Burrow) } },
+  { 0x2D, { "UnBurrow",           sizeof(Frame::UnBurrow) } },
+  { 0x2E, { "CancelNuke",         sizeof(Frame::CancelNuke) } },
+  { 0x2F, { "Lift",               sizeof(Frame::Lift) } },
+  { 0x30, { "Research",           sizeof(Frame::Research) } },
+  { 0x31, { "CancelResearch",     sizeof(Frame::CancelResearch) } },
+  { 0x32, { "Upgrade",            sizeof(Frame::Upgrade) } },
+	{ 0x33, { "CancelUpgrade",      sizeof(Frame::CancelUpgrade) } }, 
+	{ 0x34, { "CancelAddon",        sizeof(Frame::CancelAddon) } }, 
+  { 0x35, { "Morph",              sizeof(Frame::Morph) } },
+  { 0x36, { "Stim",               sizeof(Frame::Stim) } },
+	{ 0x37, { "Sync",               sizeof(Frame::Sync) } }, 
+	{ 0x38, { "VoiceEnable",        sizeof(Frame::VoiceEnable) } }, 
+	{ 0x39, { "VoiceDisable",       sizeof(Frame::VoiceDisable) } }, 
+	{ 0x3a, { "VoiceSquelch",       sizeof(Frame::VoiceSquelch) } }, 
+	{ 0x3b, { "VoiceUnsquelch",     sizeof(Frame::VoiceUnsquelch) } }, 
+	{ 0x3c, { "StartGame",          sizeof(Frame::StartGame) } }, 
+	{ 0x3d, { "DownloadPercentage", sizeof(Frame::DownloadPercentage) } }, 
+	{ 0x3e, { "ChangeGameSlot",     sizeof(Frame::ChangeGameSlot) } }, 
+	{ 0x3f, { "NewNetPlayer",       sizeof(Frame::NewNetPlayer) } }, 
+	{ 0x40, { "JoinedGame",         sizeof(Frame::JoinedGame) } }, 
+	{ 0x41, { "ChangeRace",         sizeof(Frame::ChangeRace) } }, 
+	{ 0x42, { "TeamGameTeam",       sizeof(Frame::TeamGameTeam) } }, 
+	{ 0x43, { "UMSTeam",            sizeof(Frame::UMSTeam) } }, 
+	{ 0x44, { "MeleeTeam",          sizeof(Frame::MeleeTeam) } }, 
+	{ 0x45, { "SwapPlayers",        sizeof(Frame::SwapPlayers) } }, 
+	{ 0x48, { "SavedData",          sizeof(Frame::SavedData) } }, 
+	{ 0x54, { "BriefingStart",      sizeof(Frame::BriefingStart) } }, 
+	{ 0x55, { "Latency",            sizeof(Frame::Latency) } }, 
+	{ 0x56, { "ReplaySpeed",        sizeof(Frame::ReplaySpeed) } }, 
+  { 0x57, { "LeaveGame",          sizeof(Frame::LeaveGame) } },
+	{ 0x58, { "MinimapPing",        sizeof(Frame::MinimapPing) } }, 
+  { 0x5A, { "MergeDarkArchon",    sizeof(Frame::MergeDarkArchon) } },
+	{ 0x5b, { "MakeGamePublic",     sizeof(Frame::MakeGamePublic) } }, 
+	{ 0x5c, { "Chat",               sizeof(Frame::Chat) } }, 
+	{ 0x63, { "Select121",          sizeof(Frame::Select121) } }, 
 };
 
 void DumpCmdInfo()
@@ -527,9 +780,9 @@ struct Replay
       unsigned char player_index[8];
     } data;
     char buf[sizeof(data)];
-  }
-  header;
-  std::vector<Frame> cmds;
+  };
+  Header header;
+  std::vector<Frame> frames;
 };
 
 void DumpReplay(const char* loghd, const Replay& replay)
@@ -545,6 +798,11 @@ void DumpReplay(const char* loghd, const Replay& replay)
   printf("%smap_height: %u\n", loghd, replay.header.data.map_height);
   printf("%screator: %s\n", loghd, replay.header.data.creator);
   printf("%smap_name: %s\n", loghd, replay.header.data.map_name);
+  for (int i = 0; i < replay.frames.size(); i++)
+  {
+    printf("%sframe[%d].time.pasted: %u\n", loghd, i, replay.frames[i].time.pasted);
+    printf("%sframe[%d].time.command_len: %hhu\n", loghd, i, replay.frames[i].time.command_len);
+  }
 }
 
 int ParseReplayid(const char* data, int size, Replay* replay)
@@ -584,6 +842,77 @@ int ParseHeader(const char* data, int size, Replay* replay)
   return ret;
 }
 
+int Forward(bool lookahead_only, const char* src, int nsrc, int nread, int ndst, void* dst)
+{
+  if (nsrc < nread+ndst)
+  {
+    return -6;
+  }
+  memcpy(dst, src+nread, ndst);
+  if (lookahead_only)
+  {
+    return nread;
+  }
+  return nread+ndst;
+}
+
+int Forward(const char* src, int nsrc, int nread, int ndst, void* dst)
+{
+  return Forward(false, src, nsrc, nread, ndst, dst);
+}
+
+int Lookahead(const char* src, int nsrc, int nread, int ndst, void* dst)
+{
+  return Forward(true, src, nsrc, nread, ndst, dst);
+}
+
+int ParseCommand(const char* data, int size, Replay* replay)
+{
+  int ret = 0;
+  int read_len = 0;
+
+  while (read_len < size)
+  {
+    Frame frame = {};
+    read_len = Forward(data, size, read_len, sizeof(frame.time), &frame.time);
+    if (read_len < 0) 
+    {
+      return read_len;
+    }
+
+    fprintf(stderr, "frame.time: {pasted: %u, command_len: %hhu}\n", frame.time.pasted, frame.time.command_len);
+
+    for (int i = 0; i < frame.time.command_len; i++)
+    {
+      Frame::CommandHead head = {};
+      read_len = Lookahead(data, size, read_len, sizeof(head), &head);
+      if (read_len < 0)
+      {
+        return read_len;
+      }
+
+      fprintf(stderr, "head: { playerid: %hhu, cmdid: 0x%hhX\n", head.playerid, head.cmdid);
+
+      auto cmd_info = g_cmd_info.find(head.cmdid);
+      if (cmd_info == g_cmd_info.end())
+      {
+        fprintf(stderr, "unknown cmd[0x%hhx]\n", head.cmdid);
+        return -6;
+      }
+
+      int ncmd = cmd_info->second.second;
+      std::shared_ptr<Frame::Command> cmd((Frame::Command*)operator new(ncmd));
+      read_len = Forward(data, size, read_len, ncmd, cmd.get());
+      if (read_len < 0)
+      {
+        return read_len;
+      }
+    }
+    replay->frames.push_back(std::move(frame));
+  }
+  return 0;
+}
+
 int ParseFrame(const char* data, int size, Replay* replay)
 {
   int ret = 0;
@@ -612,6 +941,12 @@ int ParseFrame(const char* data, int size, Replay* replay)
   if (chunk.raw.size() != len.data)
   {
     return -6;
+  }
+
+  ret = ParseCommand(chunk.raw.data(), chunk.raw.size(), replay);
+  if (ret != len.data)
+  {
+    return ret;
   }
 
   return read_len;
